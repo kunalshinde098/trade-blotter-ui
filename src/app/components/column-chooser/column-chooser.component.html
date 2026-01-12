@@ -1,0 +1,64 @@
+<div class="modal-overlay" (click)="cancel()">
+  <div class="modal-content" (click)="$event.stopPropagation()">
+    <!-- Header -->
+    <div class="modal-header">
+      <div class="header-title">
+        <h2>Manage Columns</h2>
+        <span class="column-count">{{selectedCount}} of {{allColumns.length}} selected</span>
+      </div>
+      <button class="btn-close" (click)="cancel()">&times;</button>
+    </div>
+    
+    <!-- Search -->
+    <div class="search-section">
+      <input 
+        type="text" 
+        class="search-input" 
+        placeholder="Search columns..."
+        [(ngModel)]="searchTerm">
+      <button class="btn btn-secondary" (click)="resetToDefaults()">
+        Reset to Defaults
+      </button>
+    </div>
+    
+    <!-- Categories -->
+    <div class="categories-section">
+      <div *ngFor="let category of categories" class="category-group">
+        <div class="category-header" (click)="toggleCategory(category)">
+          <span class="expand-icon">{{ category.expanded ? '▼' : '►' }}</span>
+          <span class="category-name">{{ category.name }}</span>
+          <span class="category-count">({{ getFilteredColumns(category).length }})</span>
+          <div class="category-actions" (click)="$event.stopPropagation()">
+            <button class="link-btn" (click)="selectAll(category)">Select All</button>
+            <button class="link-btn" (click)="deselectAll(category)">Deselect All</button>
+          </div>
+        </div>
+        
+        <div *ngIf="category.expanded" class="columns-list">
+          <div *ngFor="let column of getFilteredColumns(category)" 
+               class="column-item"
+               [class.selected]="isColumnSelected(column.fieldName)">
+            <label class="column-label">
+              <input 
+                type="checkbox"
+                [checked]="isColumnSelected(column.fieldName)"
+                (change)="toggleColumn(column)">
+              <span class="column-info">
+                <span class="column-display-name">{{ column.displayName }}</span>
+                <span class="column-field-name">({{ column.fieldName }})</span>
+              </span>
+            </label>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Footer -->
+    <div class="modal-footer">
+      <button class="btn btn-secondary" (click)="cancel()">Cancel</button>
+      <button class="btn btn-primary" (click)="applySelection()">
+        Apply ({{selectedCount}} columns)
+      </button>
+    </div>
+  </div>
+</div>

@@ -1,0 +1,66 @@
+<div class="blotter-container">
+  <!-- Header -->
+  <div class="header">
+    <div class="title-section">
+      <h1>Trades Blotter</h1>
+      <span class="subtitle">Real-time Trading Book Manager</span>
+    </div>
+    
+    <div class="controls">
+      <button class="btn btn-primary" (click)="openColumnChooser()">
+        <span class="icon">⚙</span>
+        Manage Columns ({{selectedColumns.length}}/{{allColumns.length}})
+      </button>
+      
+      <button 
+        class="btn" 
+        [class.btn-success]="streamConnected"
+        [class.btn-primary]="!streamConnected"
+        (click)="streamConnected ? disconnectStream() : connectPriceStream()"
+        [disabled]="false">
+        <span class="icon">{{ streamConnected ? '📡' : '🔌' }}</span>
+        {{ streamConnected ? 'Connected' : 'Connect Stream' }}
+      </button>
+      
+      <div class="stats">
+        <div class="stat-item">
+          <span class="stat-label">Updates:</span>
+          <span class="stat-value">{{updateCount | number}}</span>
+        </div>
+        <div class="stat-item">
+          <span class="stat-label">Columns:</span>
+          <span class="stat-value">{{selectedColumns.length}}</span>
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <!-- AG Grid -->
+  <ag-grid-angular
+  class="ag-theme-quartz"
+  [columnDefs]="columnDefs"
+  [defaultColDef]="defaultColDef"
+  [rowModelType]="'serverSide'"
+  [serverSideDatasource]="datasource"
+  [animateRows]="false"
+  [suppressColumnVirtualisation]="false"
+  [suppressRowVirtualisation]="false"
+  [cacheBlockSize]="100"
+  [maxBlocksInCache]="10"
+  [pagination]="false"
+  [enableCellChangeFlash]="true"
+  [getRowId]="getRowId"
+  (gridReady)="onGridReady($event)"
+  style="width: 100%; height: calc(100vh - 100px);">
+</ag-grid-angular>
+  
+  <!-- Column Chooser Modal -->
+  <app-column-chooser
+    *ngIf="showColumnChooser"
+    [allColumns]="allColumns"
+    [selectedColumns]="selectedColumns"
+    (columnsSelected)="onColumnsSelected($event)"
+    (close)="closeColumnChooser()">
+  </app-column-chooser>
+</div>
+

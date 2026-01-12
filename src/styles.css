@@ -1,0 +1,77 @@
+/* Global styles */
+@import 'ag-grid-community/styles/ag-grid.css';
+@import 'ag-grid-community/styles/ag-theme-quartz.css';
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, 
+               Ubuntu, Cantarell, 'Helvetica Neue', sans-serif;
+  background: #1e1e1e;
+  color: #e0e0e0;
+  overflow: hidden;
+}
+
+/* AG Grid customization for trading */
+.ag-theme-alpine-dark {
+  --ag-background-color: #1e1e1e;
+  --ag-header-background-color: #2a2a2a;
+  --ag-odd-row-background-color: #242424;
+  --ag-row-hover-color: #2d2d2d;
+  --ag-border-color: #3a3a3a;
+  --ag-font-size: 13px;
+}
+
+/* Flash animation for updated cells */
+.ag-cell-data-changed {
+  background-color: #ff9800 !important;
+}
+
+.ag-cell-data-changed-animation {
+  background-color: transparent !important;
+  transition: background-color 1s ease-out;
+}
+
+/* PnL specific styling */
+.pnl-cell {
+  font-weight: 600;
+  font-family: 'Monaco', 'Courier New', monospace;
+}
+
+.pnl-positive {
+  color: #4caf50 !important;
+}
+
+.pnl-negative {
+  color: #f44336 !important;
+}
+
+/* Number formatting */
+.number-cell {
+  text-align: right;
+  font-family: 'Monaco', 'Courier New', monospace;
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: #2a2a2a;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #4a4a4a;
+  border-radius: 5px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #5a5a5a;
+}
