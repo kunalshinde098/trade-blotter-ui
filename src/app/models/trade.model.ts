@@ -23,6 +23,7 @@ export interface Trade {
 }
 
 export interface TradeSearchRequest {
+ // startRow: number;
   book?: string;
   tradeDateFrom?: string;
   tradeDateTo?: string;

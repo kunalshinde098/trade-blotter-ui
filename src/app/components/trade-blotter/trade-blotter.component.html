@@ -48,11 +48,28 @@
   [cacheBlockSize]="100"
   [maxBlocksInCache]="10"
   [pagination]="false"
+  [getRowId]="getRowId"
+  (gridReady)="onGridReady($event)"
+  style="width: 100%; height: calc(100vh - 100px);">
+</ag-grid-angular> 
+
+<!-- <ag-grid-angular
+  class="ag-theme-alpine-dark"
+  [columnDefs]="columnDefs"
+  [defaultColDef]="defaultColDef"
+  [rowModelType]="'infinite'"  
+  [datasource]="datasource"
+  [animateRows]="false"
+  [suppressColumnVirtualisation]="false"
+  [suppressRowVirtualisation]="false"
+  [cacheBlockSize]="100"
+  [maxBlocksInCache]="10"
+  [pagination]="false"
   [enableCellChangeFlash]="true"
   [getRowId]="getRowId"
   (gridReady)="onGridReady($event)"
   style="width: 100%; height: calc(100vh - 100px);">
-</ag-grid-angular>
+</ag-grid-angular> -->
   
   <!-- Column Chooser Modal -->
   <app-column-chooser

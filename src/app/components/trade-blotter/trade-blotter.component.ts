@@ -9,13 +9,24 @@ import {
   IServerSideGetRowsParams,
   ValueFormatterParams
 } from 'ag-grid-community';
-import { Subject, takeUntil } from 'rxjs';
 import { TradeService } from '../../services/trade.service';
 import { PriceStreamService } from '../../services/price-stream.service';
 import { Trade, TradeSearchRequest } from '../../models/trade.model';
 import { ColumnMetadata } from '../../models/column-metadata.model';
 import { PriceUpdate } from '../../models/price-update.model';
 import { ColumnChooserComponent } from '../column-chooser/column-chooser.component';
+
+import { ModuleRegistry } from "ag-grid-community";
+import { AllEnterpriseModule, LicenseManager, IntegratedChartsModule } from "ag-grid-enterprise";
+import { AgChartsEnterpriseModule } from "ag-charts-enterprise";
+import { Subject, takeUntil, finalize } from 'rxjs';
+
+ModuleRegistry.registerModules([
+    AllEnterpriseModule,
+    IntegratedChartsModule.with(AgChartsEnterpriseModule)
+]);
+
+LicenseManager.setLicenseKey("[TRIAL]_this_{AG_Charts_and_AG_Grid}_Enterprise_key_{AG-117502}_is_granted_for_evaluation_only___Use_in_production_is_not_permitted___Please_report_misuse_to_legal@ag-grid.com___For_help_with_purchasing_a_production_key_please_contact_info@ag-grid.com___You_are_granted_a_{Single_Application}_Developer_License_for_one_application_only___All_Front-End_JavaScript_developers_working_on_the_application_would_need_to_be_licensed___This_key_will_deactivate_on_{11 February 2026}____[v3]_[0102]_MTc3MDc2ODAwMDAwMA==0161f97d1f9bc3fa8bee90aa4583dd3d");
 
 @Component({
   selector: 'app-trade-blotter',
@@ -33,8 +44,7 @@ export class TradeBlotterComponent implements OnInit, OnDestroy {
     sortable: true,
     filter: true,
     resizable: true,
-    enableCellChangeFlash: true,
-    suppressMenu: false
+    enableCellChangeFlash: true    
   };
   
   datasource?: IServerSideDatasource;
@@ -43,7 +53,18 @@ export class TradeBlotterComponent implements OnInit, OnDestroy {
   showColumnChooser = false;
   streamConnected = false;
   updateCount = 0;
+
+  // Add these properties
+  rowModelType: 'serverSide' = 'serverSide';
+  cacheBlockSize = 100;
+  maxBlocksInCache = 2; // Reduced from 10
+  maxConcurrentDatasourceRequests = 1; // Only 1 request at a time
+  blockLoadDebounceMillis = 300; // Debounce rapid requests
   
+  // Track pagination state
+  private lastSearchAfter: any[] | null = null;
+  private isLoadingData = false; // Prevent duplicate requests
+
   constructor(
     private tradeService: TradeService,
     private priceStreamService: PriceStreamService
@@ -150,50 +171,96 @@ export class TradeBlotterComponent implements OnInit, OnDestroy {
   
   createDatasource() {
     const requestedFields = this.selectedColumns.map(c => c.fieldName);
-    
+
     this.datasource = {
       getRows: (params: IServerSideGetRowsParams) => {
+        // Prevent duplicate requests
+        if (this.isLoadingData) {
+          console.warn('Request already in progress, skipping');
+          return;
+        }
+
+        this.isLoadingData = true;
+
+        console.log('SSRM getRows called:', {
+          startRow: params.request.startRow,
+          endRow: params.request.endRow,
+          sortModel: params.request.sortModel
+        });
+
         const request: TradeSearchRequest = {
           requestedFields,
           pageSize: 100,
           sortField: 'tradeDate',
           sortOrder: 'desc'
         };
-        
+
         // Apply sorting from grid
         if (params.request.sortModel && params.request.sortModel.length > 0) {
           const sortModel = params.request.sortModel[0];
           request.sortField = sortModel.colId;
           request.sortOrder = sortModel.sort;
         }
-        
-        // FIX: Handle undefined startRow with nullish coalescing
-        const startRow = params.request.startRow ?? 0;
-        
+
         // Apply search_after for pagination
-        if (startRow > 0) {
-          // In real implementation, you'd track lastSearchAfter from previous response
-          // For POC, we're using simple pagination
+        const startRow = params.request.startRow ?? 0;
+        if (startRow > 0 && this.lastSearchAfter) {
+          request.searchAfter = this.lastSearchAfter;
+        } else {
+          // Reset for new sort/filter
+          this.lastSearchAfter = null;
         }
-        
+
         this.tradeService.searchTrades(request)
-          .pipe(takeUntil(this.destroy$))
+          .pipe(
+            takeUntil(this.destroy$),
+            finalize(() => {
+              this.isLoadingData = false;
+            })
+          )
           .subscribe({
             next: (response) => {
+              console.log('Search response:', {
+                tradesCount: response.trades.length,
+                hasMore: response.hasMore,
+                startRow: startRow
+              });
+
+              // Store lastSearchAfter for next pagination
+              this.lastSearchAfter = response.lastSearchAfter;
+
+              // CRITICAL: Proper rowCount calculation
+              let rowCount: number | undefined;
+
+              if (response.trades.length === 0) {
+                // No data returned - use startRow as final count
+                rowCount = startRow;
+              } else if (!response.hasMore) {
+                // Last page - exact count
+                rowCount = startRow + response.trades.length;
+              } else {
+                // More data available - keep loading
+                rowCount = undefined;
+              }
+
+              console.log('Calling params.success with rowCount:', rowCount);
+
               params.success({
                 rowData: response.trades,
-                rowCount: response.hasMore ? undefined : startRow + response.trades.length
+                rowCount: rowCount
               });
             },
             error: (err) => {
               console.error('Search error:', err);
+              this.isLoadingData = false;
               params.fail();
             }
           });
       }
     };
-    
+
     if (this.gridApi) {
+      // Clear existing cache when setting new datasource
       this.gridApi.setGridOption('serverSideDatasource', this.datasource);
     }
   }
@@ -211,32 +278,43 @@ export class TradeBlotterComponent implements OnInit, OnDestroy {
           console.error('Price stream error:', err);
           this.streamConnected = false;
         }
-      });
+    });
     
     this.streamConnected = true;
   }
   
   applyPriceUpdate(update: PriceUpdate) {
-    if (!this.gridApi) return;
+    if (!this.gridApi) {
+      console.warn('Grid API not ready');
+      return;
+    }
     
-    // Find the row node by tradeId
-    let rowNode: any = null;
+    console.log('Applying update for tradeId:', update.tradeId);
+    
+    // For SSRM, we need to use transaction API differently
+    // First, try to find if the row is currently displayed
+    let found = false;
+    
     this.gridApi.forEachNode((node) => {
       if (node.data && node.data.tradeId === update.tradeId) {
-        rowNode = node;
+        found = true;
+        console.log('Found node, applying update');
+        
+        // Update the node data directly
+        Object.assign(node.data, update.updatedFields);
+        
+        // Refresh the specific cells
+        this.gridApi.refreshCells({
+          rowNodes: [node],
+          force: true
+        });
+        
+        this.updateCount++;
       }
     });
     
-    if (rowNode) {
-      // Update only the changed fields (delta update)
-      const updatedData = { ...rowNode.data, ...update.updatedFields };
-      
-      // Use applyTransactionAsync for efficient cell-level updates
-      this.gridApi.applyTransactionAsync({
-        update: [updatedData]
-      }, () => {
-        this.updateCount++;
-      });
+    if (!found) {
+      console.log('Trade not currently visible in grid');
     }
   }
   

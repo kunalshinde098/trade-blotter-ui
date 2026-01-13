@@ -18,8 +18,9 @@
     "@angular/platform-browser": "^20.0.0",
     "@angular/platform-browser-dynamic": "^20.0.0",
     "@angular/router": "^20.0.0",
-    "ag-grid-angular": "^32.3.3",
-    "ag-grid-community": "^32.3.3",
+    "ag-grid-community": "35.0.0",
+    "ag-grid-angular": "35.0.0",
+    "ag-grid-enterprise": "35.0.0",
     "rxjs": "~7.8.0",
     "tslib": "^2.3.0",
     "zone.js": "~0.15.0"
