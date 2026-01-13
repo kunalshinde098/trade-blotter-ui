@@ -45,7 +45,7 @@ export class TradeBlotterComponent implements OnInit, OnDestroy {
     sortable: true,
     filter: true,
     resizable: true,
-    enableCellChangeFlash: true    
+    enableCellChangeFlash: true
   };
   
   datasource?: IServerSideDatasource;
