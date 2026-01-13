@@ -38,6 +38,7 @@ LicenseManager.setLicenseKey("[TRIAL]_this_{AG_Charts_and_AG_Grid}_Enterprise_ke
 export class TradeBlotterComponent implements OnInit, OnDestroy {
   private gridApi!: GridApi;
   private destroy$ = new Subject<void>();
+  private scrollTimeout: any;
   
   columnDefs: ColDef[] = [];
   defaultColDef: ColDef = {
@@ -80,6 +81,7 @@ export class TradeBlotterComponent implements OnInit, OnDestroy {
   }
   
   ngOnDestroy() {
+    clearTimeout(this.scrollTimeout);
     this.destroy$.next();
     this.destroy$.complete();
     this.priceStreamService.disconnect();
@@ -167,8 +169,55 @@ export class TradeBlotterComponent implements OnInit, OnDestroy {
   onGridReady(params: GridReadyEvent) {
     this.gridApi = params.api;
     this.createDatasource();
+    
+    // Debounced scroll handler - waits 1 second after scrolling stops
+    params.api.addEventListener('bodyScroll', () => {
+      if (!this.streamConnected) return;
+      
+      // Clear existing timeout
+      clearTimeout(this.scrollTimeout);
+      
+      // Set new timeout - will only execute after 1 second of no scrolling
+      this.scrollTimeout = setTimeout(() => {
+        if (this.streamConnected) {
+          this.reconnectWithVisibleTrades();
+        }
+      }, 1000);
+    });
   }
   
+  private reconnectWithVisibleTrades() {
+    if (!this.streamConnected) return;
+    
+    // Step 1: Disconnect existing stream
+    this.priceStreamService.disconnect();
+    
+    // Step 2: Get new visible trade IDs (only viewport)
+    const visibleTradeIds: string[] = [];
+    const firstRow = this.gridApi.getFirstDisplayedRowIndex();
+    const lastRow = this.gridApi.getLastDisplayedRowIndex();
+    
+    // Use forEachNode for server-side row model
+    this.gridApi.forEachNode((node) => {
+      if (node.rowIndex !== null && node.rowIndex >= firstRow && node.rowIndex <= lastRow && node.data?.tradeId) {
+        visibleTradeIds.push(node.data.tradeId);
+      }
+    });
+    
+    console.log('Reconnecting SSE for visible trades:', visibleTradeIds.length);
+    
+    // Step 3: Reconnect SSE with updated subscription (only visible trades)
+    this.priceStreamService.connect(visibleTradeIds)
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (update) => this.applyPriceUpdate(update),
+        error: (err) => {
+          console.error('Price stream error:', err);
+          this.streamConnected = false;
+        }
+      });
+  } 
+
   createDatasource() {
     const requestedFields = this.selectedColumns.map(c => c.fieldName);
 
@@ -266,11 +315,23 @@ export class TradeBlotterComponent implements OnInit, OnDestroy {
   }
   
   connectPriceStream() {
-    if (this.streamConnected) {
-      return;
-    }
+    if (this.streamConnected) return;
     
-    this.priceStreamService.connect()
+    // Get visible trade IDs (only viewport)
+    const visibleTradeIds: string[] = [];
+    const firstRow = this.gridApi.getFirstDisplayedRowIndex();
+    const lastRow = this.gridApi.getLastDisplayedRowIndex();
+    
+    // Use forEachNode for server-side row model
+    this.gridApi.forEachNode((node) => {
+      if (node.rowIndex !== null && node.rowIndex >= firstRow && node.rowIndex <= lastRow && node.data?.tradeId) {
+        visibleTradeIds.push(node.data.tradeId);
+      }
+    });
+    
+    console.log('Connecting price stream for', visibleTradeIds.length, 'visible trades');
+    
+    this.priceStreamService.connect(visibleTradeIds)
       .pipe(takeUntil(this.destroy$))
       .subscribe({
         next: (update) => this.applyPriceUpdate(update),
@@ -278,7 +339,7 @@ export class TradeBlotterComponent implements OnInit, OnDestroy {
           console.error('Price stream error:', err);
           this.streamConnected = false;
         }
-    });
+      });
     
     this.streamConnected = true;
   }

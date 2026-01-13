@@ -9,46 +9,62 @@ import { environment } from '../environments/environment';
 export class PriceStreamService {
   private eventSource: EventSource | null = null;
   private priceUpdates$ = new Subject<PriceUpdate>();
+  private isConnecting = false;  // ADD THIS
 
   constructor(private ngZone: NgZone) {}
 
-  connect(): Observable<PriceUpdate> {
-  if (this.eventSource) {
-    console.warn('Already connected to price stream');
+  connect(tradeIds?: string[]): Observable<PriceUpdate> {
+    if (this.isConnecting) {
+      console.warn('Connection already in progress');
+      return this.priceUpdates$.asObservable();
+    }
+    
+    // Disconnect existing connection before creating new one
+    if (this.eventSource) {
+      console.log('Closing existing connection before reconnecting');
+      this.disconnect();
+    }
+
+    this.isConnecting = true;
+    
+    let url = `${environment.apiUrl}/api/trades/prices/stream`;
+    if (tradeIds && tradeIds.length > 0) {
+      url += `?tradeIds=${tradeIds.join(',')}`;
+    }
+    
+    this.eventSource = new EventSource(url);
+
+    this.eventSource.onopen = () => {
+      console.log('SSE connection opened for', tradeIds?.length || 'all', 'trades');
+      this.isConnecting = false;
+    };
+
+    this.eventSource.onmessage = (event) => {
+      this.ngZone.run(() => {
+        try {
+          const update: PriceUpdate = JSON.parse(event.data);
+          console.log('Received price update for tradeId:', update.tradeId);
+          this.priceUpdates$.next(update);
+        } catch (error) {
+          console.error('Error parsing SSE message:', error);
+        }
+      });
+    };
+
+    this.eventSource.onerror = (error) => {
+      console.error('SSE error:', error);
+      this.isConnecting = false;
+      this.disconnect();
+    };
+
     return this.priceUpdates$.asObservable();
-  }
-
-  const url = `${environment.apiUrl}/api/trades/prices/stream`;
-  console.log('Connecting to SSE:', url);  // ADD THIS
-  this.eventSource = new EventSource(url);
-
-  this.eventSource.addEventListener('price-update', (event: MessageEvent) => {
-    console.log('SSE event received:', event.data);  // ADD THIS
-    this.ngZone.run(() => {
-      const update: PriceUpdate = JSON.parse(event.data);
-      console.log('Parsed update:', update);  // ADD THIS
-      this.priceUpdates$.next(update);
-    });
-  });
-
-  this.eventSource.onerror = (error) => {
-    console.error('SSE error:', error);
-    console.error('ReadyState:', this.eventSource?.readyState);  // ADD THIS
-    this.disconnect();
-  };
-
-  this.eventSource.onopen = () => {
-    console.log('SSE connection opened successfully');  // ADD THIS
-  };
-
-  return this.priceUpdates$.asObservable();
 }
 
   disconnect(): void {
+    this.isConnecting = false;  // ADD THIS
     if (this.eventSource) {
       this.eventSource.close();
       this.eventSource = null;
-      console.log('SSE connection closed');
     }
   }
 
